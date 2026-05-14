@@ -9,8 +9,8 @@
 // + Lightweight, distributed as a single source file.
 //
 //=====================================================================
-#ifndef __IKCP_H__
-#define __IKCP_H__
+#ifndef _IKCP_H_
+#define _IKCP_H_
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -262,6 +262,13 @@ typedef struct IQUEUEHEAD iqueue_head;
 
 
 //=====================================================================
+// Predefine struct
+//=====================================================================
+struct IKCPCB;
+typedef struct IKCPCB ikcpcb;
+
+
+//=====================================================================
 // SEGMENT
 //=====================================================================
 struct IKCPSEG
@@ -280,6 +287,30 @@ struct IKCPSEG
 	IUINT32 fastack;
 	IUINT32 xmit;
 	char data[1];
+};
+
+
+//---------------------------------------------------------------------
+// IKCPOPS - pluggable congestion control operations
+//---------------------------------------------------------------------
+struct IKCPOPS
+{
+	const char *name;
+	int (*init)(ikcpcb *kcp);
+	void (*release)(ikcpcb *kcp);
+	void (*on_ack)(ikcpcb *kcp, IUINT32 acked_segs, IUINT32 prior_in_flight);
+	void (*on_fast_retransmit)(ikcpcb *kcp, IUINT32 fast_retrans,
+				IUINT32 inflight, IUINT32 prior_cwnd);
+	void (*on_timeout)(ikcpcb *kcp, IUINT32 prior_cwnd);
+	void (*on_tick)(ikcpcb *kcp);
+	void (*on_app_limited)(ikcpcb *kcp, IUINT32 inflight);
+	void (*on_rtt)(ikcpcb *kcp, IINT32 rtt);
+	void (*on_pkt_sent)(ikcpcb *kcp, IUINT32 sn, IUINT32 ts,
+				IUINT32 len, IUINT32 inflight);
+	void (*on_pkt_acked)(ikcpcb, IUINT32 sn, IUINT32 ts,
+				IUINT32 len, IINT32 rtt, IUINT32 xmit);
+	IUINT32 (*get_info)(ikcpcb *kcp, void *buf, IUINT32 bufsize);
+	IUINT32 (*pacing_rate)(ikcpcb *kcp);
 };
 
 
@@ -316,8 +347,6 @@ struct IKCPCB
 	void (*writelog)(const char *log, struct IKCPCB *kcp, void *user);
 };
 
-
-typedef struct IKCPCB ikcpcb;
 
 #define IKCP_LOG_OUTPUT			1
 #define IKCP_LOG_INPUT			2

@@ -422,10 +422,10 @@ int ikcp_wndsize(ikcpcb *kcp, int sndwnd, int rcvwnd);
 int ikcp_waitsnd(const ikcpcb *kcp);
 
 // fastest: ikcp_nodelay(kcp, 1, 20, 2, 1)
-// nodelay: 0:disable(default), 1:enable
-// interval: internal update timer interval in millisec, default is 100ms 
-// resend: 0:disable fast resend(default), 1:enable fast resend
-// nc: 0:normal congestion control(default), 1:disable congestion control
+// nodelay: 0:disable (default), 1:enable
+// interval: internal update timer interval in ms, default is 100ms
+// resend: 0:disable fast resend (default), 1:enable fast resend
+// nc: 0:normal congestion control (default), 1:disable congestion control
 int ikcp_nodelay(ikcpcb *kcp, int nodelay, int interval, int resend, int nc);
 
 // install congestion control algorithm, NULL restores builtin

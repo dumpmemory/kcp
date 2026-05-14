@@ -41,7 +41,7 @@ const IUINT32 IKCP_OVERHEAD = 24;
 const IUINT32 IKCP_DEADLINK = 20;
 const IUINT32 IKCP_THRESH_INIT = 2;
 const IUINT32 IKCP_THRESH_MIN = 2;
-const IUINT32 IKCP_PROBE_INIT = 7000;		// 7 secs to probe window size
+const IUINT32 IKCP_PROBE_INIT = 5000;		// 7 secs to probe window size
 const IUINT32 IKCP_PROBE_LIMIT = 120000;	// up to 120 secs to probe window
 const IUINT32 IKCP_FASTACK_LIMIT = 5;		// max times to trigger fastack
 
@@ -289,6 +289,8 @@ ikcpcb* ikcp_create(IUINT32 conv, void *user)
 	kcp->xmit = 0;
 	kcp->dead_link = IKCP_DEADLINK;
 	kcp->output = NULL;
+	kcp->ccops = NULL;
+	kcp->congest = NULL;
 	kcp->writelog = NULL;
 
 	return kcp;
@@ -296,13 +298,16 @@ ikcpcb* ikcp_create(IUINT32 conv, void *user)
 
 
 //---------------------------------------------------------------------
-// release a new kcpcb
+// release a kcpcb
 //---------------------------------------------------------------------
 void ikcp_release(ikcpcb *kcp)
 {
+	IKCPSEG *seg;
 	assert(kcp);
 	if (kcp) {
-		IKCPSEG *seg;
+		if (kcp->ccops && kcp->ccops->release) {
+			kcp->ccops->release(kcp);
+		}
 		while (!iqueue_is_empty(&kcp->snd_buf)) {
 			seg = iqueue_entry(kcp->snd_buf.next, IKCPSEG, node);
 			iqueue_del(&seg->node);
@@ -353,7 +358,7 @@ void ikcp_setoutput(ikcpcb *kcp, int (*output)(const char *buf, int len,
 
 
 //---------------------------------------------------------------------
-// user/upper level recv: returns size, returns below zero for EAGAIN
+// upper-level recv: returns size, or a negative value for EAGAIN
 //---------------------------------------------------------------------
 int ikcp_recv(ikcpcb *kcp, char *buffer, int len)
 {
@@ -464,7 +469,7 @@ int ikcp_peeksize(const ikcpcb *kcp)
 
 
 //---------------------------------------------------------------------
-// user/upper level send, returns below zero for error
+// upper-level send: returns size, or a negative value on error
 //---------------------------------------------------------------------
 int ikcp_send(ikcpcb *kcp, const char *buffer, int len)
 {
@@ -562,6 +567,9 @@ static void ikcp_update_ack(ikcpcb *kcp, IINT32 rtt)
 	}
 	rto = kcp->rx_srtt + _imax_(kcp->interval, 4 * kcp->rx_rttval);
 	kcp->rx_rto = _ibound_(kcp->rx_minrto, rto, IKCP_RTO_MAX);
+	if (kcp->ccops && kcp->ccops->on_rtt) {
+		kcp->ccops->on_rtt(kcp, rtt);
+	}
 }
 
 static void ikcp_shrink_buf(ikcpcb *kcp)
@@ -578,6 +586,7 @@ static void ikcp_shrink_buf(ikcpcb *kcp)
 static void ikcp_parse_ack(ikcpcb *kcp, IUINT32 sn)
 {
 	struct IQUEUEHEAD *p, *next;
+	IINT32 pkt_rtt;
 
 	if (_itimediff(sn, kcp->snd_una) < 0 || _itimediff(sn, kcp->snd_nxt) >= 0)
 		return;
@@ -586,6 +595,14 @@ static void ikcp_parse_ack(ikcpcb *kcp, IUINT32 sn)
 		IKCPSEG *seg = iqueue_entry(p, IKCPSEG, node);
 		next = p->next;
 		if (sn == seg->sn) {
+			if (kcp->ccops && kcp->ccops->on_pkt_acked) {
+				pkt_rtt = -1;
+				if (_itimediff(kcp->current, seg->ts) >= 0) {
+					pkt_rtt = _itimediff(kcp->current, seg->ts);
+				}
+				kcp->ccops->on_pkt_acked(kcp, seg->sn, seg->ts,
+						seg->len, pkt_rtt, seg->xmit);
+			}
 			iqueue_del(p);
 			ikcp_segment_delete(kcp, seg);
 			kcp->nsnd_buf--;
@@ -604,6 +621,10 @@ static void ikcp_parse_una(ikcpcb *kcp, IUINT32 una)
 		IKCPSEG *seg = iqueue_entry(p, IKCPSEG, node);
 		next = p->next;
 		if (_itimediff(una, seg->sn) > 0) {
+			if (kcp->ccops && kcp->ccops->on_pkt_acked) {
+				kcp->ccops->on_pkt_acked(kcp, seg->sn, seg->ts,
+						seg->len, -1, seg->xmit);
+			}
 			iqueue_del(p);
 			ikcp_segment_delete(kcp, seg);
 			kcp->nsnd_buf--;

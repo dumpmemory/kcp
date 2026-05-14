@@ -307,7 +307,7 @@ struct IKCPOPS
 	void (*on_rtt)(ikcpcb *kcp, IINT32 rtt);
 	void (*on_pkt_sent)(ikcpcb *kcp, IUINT32 sn, IUINT32 ts,
 				IUINT32 len, IUINT32 inflight);
-	void (*on_pkt_acked)(ikcpcb, IUINT32 sn, IUINT32 ts,
+	void (*on_pkt_acked)(ikcpcb *kcp, IUINT32 sn, IUINT32 ts,
 				IUINT32 len, IINT32 rtt, IUINT32 xmit);
 	IUINT32 (*get_info)(ikcpcb *kcp, void *buf, IUINT32 bufsize);
 	IUINT32 (*pacing_rate)(ikcpcb *kcp);

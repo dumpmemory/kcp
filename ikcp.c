@@ -777,6 +777,8 @@ void ikcp_parse_data(ikcpcb *kcp, IKCPSEG *newseg)
 int ikcp_input(ikcpcb *kcp, const char *data, long size)
 {
 	IUINT32 prev_una = kcp->snd_una;
+	IUINT32 prev_nsnd_buf = kcp->nsnd_buf;
+	IUINT32 acked_segs, prior_in_flight;
 	IUINT32 maxack = 0, latest_ts = 0;
 	int flag = 0;
 
@@ -901,25 +903,32 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 	}
 
 	if (_itimediff(kcp->snd_una, prev_una) > 0) {
-		if (kcp->cwnd < kcp->rmt_wnd) {
-			IUINT32 mss = kcp->mss;
-			if (kcp->cwnd < kcp->ssthresh) {
-				kcp->cwnd++;
-				kcp->incr += mss;
-			}	else {
-				if (kcp->incr < mss) kcp->incr = mss;
-				kcp->incr += (mss * mss) / kcp->incr + (mss / 16);
-				if ((kcp->cwnd + 1) * mss <= kcp->incr) {
-				#if 1
-					kcp->cwnd = (kcp->incr + mss - 1) / ((mss > 0)? mss : 1);
-				#else
+		acked_segs = kcp->snd_una - prev_una;
+		prior_in_flight = prev_nsnd_buf;
+		if (kcp->ccops && kcp->ccops->on_ack) {
+			kcp->ccops->on_ack(kcp, acked_segs, prior_in_flight);
+		}
+		else {
+			if (kcp->cwnd < kcp->rmt_wnd) {
+				IUINT32 mss = kcp->mss;
+				if (kcp->cwnd < kcp->ssthresh) {
 					kcp->cwnd++;
-				#endif
+					kcp->incr += mss;
+				}	else {
+					if (kcp->incr < mss) kcp->incr = mss;
+					kcp->incr += (mss * mss) / kcp->incr + (mss / 16);
+					if ((kcp->cwnd + 1) * mss <= kcp->incr) {
+					#if 1
+						kcp->cwnd = (kcp->incr + mss - 1) / ((mss > 0)? mss : 1);
+					#else
+						kcp->cwnd++;
+					#endif
+					}
 				}
-			}
-			if (kcp->cwnd > kcp->rmt_wnd) {
-				kcp->cwnd = kcp->rmt_wnd;
-				kcp->incr = kcp->rmt_wnd * mss;
+				if (kcp->cwnd > kcp->rmt_wnd) {
+					kcp->cwnd = kcp->rmt_wnd;
+					kcp->incr = kcp->rmt_wnd * mss;
+				}
 			}
 		}
 	}

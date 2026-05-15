@@ -1194,7 +1194,7 @@ void ikcp_flush(ikcpcb *kcp)
 			kcp->ccops->on_timeout(kcp, prior_cwnd);
 		}
 		else {
-			kcp->ssthresh = cwnd / 2;
+			kcp->ssthresh = prior_cwnd / 2;
 			if (kcp->ssthresh < IKCP_THRESH_MIN)
 				kcp->ssthresh = IKCP_THRESH_MIN;
 			kcp->cwnd = 1;

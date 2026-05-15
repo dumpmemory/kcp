@@ -1087,7 +1087,7 @@ void ikcp_flush(ikcpcb *kcp)
 
 		if (kcp->ccops && kcp->ccops->on_pkt_sent) {
 			kcp->ccops->on_pkt_sent(kcp, newseg->sn, current, 
-					newseg->len, kcp->nsnd_buf - 1, 0);
+					newseg->len, kcp->nsnd_buf - 1);
 		}
 	}
 
@@ -1178,7 +1178,8 @@ void ikcp_flush(ikcpcb *kcp)
 	// update ssthresh
 	if (change) {
 		if (kcp->ccops && kcp->ccops->on_fast_retransmit) {
-			kcp->ccops->on_fast_retransmit(kcp, (IUINT32)change, kcp->nsnd_buf, prior_cwnd);
+			kcp->ccops->on_fast_retransmit(kcp, (IUINT32)change, 
+					kcp->nsnd_buf, prior_cwnd);
 		}
 		else {
 			IUINT32 inflight = kcp->snd_nxt - kcp->snd_una;

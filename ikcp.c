@@ -1086,7 +1086,8 @@ void ikcp_flush(ikcpcb *kcp)
 		newseg->xmit = 0;
 
 		if (kcp->ccops && kcp->ccops->on_pkt_sent) {
-			kcp->ccops->on_pkt_sent(kcp, newseg->sn, current, newseg->len, kcp->nsnd_buf - 1);
+			kcp->ccops->on_pkt_sent(kcp, newseg->sn, current, 
+					newseg->len, kcp->nsnd_buf - 1, 0);
 		}
 	}
 

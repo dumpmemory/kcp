@@ -981,6 +981,7 @@ void ikcp_flush(ikcpcb *kcp)
 	IUINT32 rtomin;
 	IUINT32 prior_cwnd;
 	IUINT32 eff_cwnd, cur_inflight;
+	IINT32 pacing_budget = -1;
 	struct IQUEUEHEAD *p;
 	int change = 0;
 	int lost = 0;
@@ -991,6 +992,10 @@ void ikcp_flush(ikcpcb *kcp)
 
 	if (kcp->ccops && kcp->ccops->on_tick) {
 		kcp->ccops->on_tick(kcp);
+	}
+
+	if (kcp->ccops && kcp->ccops->pacing_rate) {
+		pacing_budget = (IINT32)kcp->ccops->pacing_rate(kcp);
 	}
 
 	prior_cwnd = kcp->cwnd;
@@ -1149,6 +1154,10 @@ void ikcp_flush(ikcpcb *kcp)
 			segment->wnd = seg.wnd;
 			segment->una = kcp->rcv_nxt;
 
+			if (pacing_budget >= 0 && pacing_budget < (IINT32)segment->len) {
+				break;
+			}
+
 			if (kcp->ccops && kcp->ccops->on_pkt_sent) {
 				kcp->ccops->on_pkt_sent(kcp, segment->sn, current,
 						segment->len, kcp->nsnd_buf, segment->xmit);
@@ -1167,6 +1176,10 @@ void ikcp_flush(ikcpcb *kcp)
 			if (segment->len > 0) {
 				memcpy(ptr, segment->data, segment->len);
 				ptr += segment->len;
+			}
+
+			if (pacing_budget >= 0) {
+				pacing_budget -= (IINT32)segment->len;
 			}
 
 			if (segment->xmit >= kcp->dead_link) {

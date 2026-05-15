@@ -298,7 +298,8 @@ struct IKCPOPS
 	const char *name;
 	int (*init)(ikcpcb *kcp);
 	void (*release)(ikcpcb *kcp);
-	void (*on_ack)(ikcpcb *kcp, IUINT32 acked_segs, IUINT32 prior_in_flight);
+	void (*on_ack)(ikcpcb *kcp, IUINT32 acked_segs, IUINT32 acked_bytes,
+			IUINT32 prior_in_flight);
 	void (*on_fast_retransmit)(ikcpcb *kcp, IUINT32 fast_retrans,
 				IUINT32 inflight, IUINT32 prior_cwnd);
 	void (*on_timeout)(ikcpcb *kcp, IUINT32 prior_cwnd);
@@ -306,7 +307,7 @@ struct IKCPOPS
 	void (*on_app_limited)(ikcpcb *kcp, IUINT32 inflight);
 	void (*on_rtt)(ikcpcb *kcp, IINT32 rtt);
 	void (*on_pkt_sent)(ikcpcb *kcp, IUINT32 sn, IUINT32 ts,
-				IUINT32 len, IUINT32 inflight);
+				IUINT32 len, IUINT32 inflight, IUINT32 xmit);
 	void (*on_pkt_acked)(ikcpcb *kcp, IUINT32 sn, IUINT32 ts,
 				IUINT32 len, IINT32 rtt, IUINT32 xmit);
 	IUINT32 (*get_info)(ikcpcb *kcp, void *buf, IUINT32 bufsize);
@@ -337,6 +338,7 @@ struct IKCPCB
 	IUINT32 *acklist;
 	IUINT32 ackcount;
 	IUINT32 ackblock;
+	IUINT32 ackedlen;
 	void *user;
 	char *buffer;
 	int fastresend;

@@ -272,6 +272,7 @@ ikcpcb* ikcp_create(IUINT32 conv, void *user)
 	kcp->acklist = NULL;
 	kcp->ackblock = 0;
 	kcp->ackcount = 0;
+	kcp->ackedlen = 0;
 	kcp->rx_srtt = 0;
 	kcp->rx_rttval = 0;
 	kcp->rx_rto = IKCP_RTO_DEF;
@@ -595,6 +596,7 @@ static void ikcp_parse_ack(ikcpcb *kcp, IUINT32 sn)
 		IKCPSEG *seg = iqueue_entry(p, IKCPSEG, node);
 		next = p->next;
 		if (sn == seg->sn) {
+			kcp->ackedlen += seg->len;
 			if (kcp->ccops && kcp->ccops->on_pkt_acked) {
 				pkt_rtt = -1;
 				if (_itimediff(kcp->current, seg->ts) >= 0) {
@@ -621,6 +623,7 @@ static void ikcp_parse_una(ikcpcb *kcp, IUINT32 una)
 		IKCPSEG *seg = iqueue_entry(p, IKCPSEG, node);
 		next = p->next;
 		if (_itimediff(una, seg->sn) > 0) {
+			kcp->ackedlen += seg->len;
 			if (kcp->ccops && kcp->ccops->on_pkt_acked) {
 				kcp->ccops->on_pkt_acked(kcp, seg->sn, seg->ts,
 						seg->len, -1, seg->xmit);
@@ -782,6 +785,8 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 	IUINT32 maxack = 0, latest_ts = 0;
 	int flag = 0;
 
+	kcp->ackedlen = 0;
+
 	if (ikcp_canlog(kcp, IKCP_LOG_INPUT)) {
 		ikcp_log(kcp, IKCP_LOG_INPUT, "[RI] %d bytes", (int)size);
 	}
@@ -906,7 +911,8 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 		acked_segs = kcp->snd_una - prev_una;
 		prior_in_flight = prev_nsnd_buf;
 		if (kcp->ccops && kcp->ccops->on_ack) {
-			kcp->ccops->on_ack(kcp, acked_segs, prior_in_flight);
+			kcp->ccops->on_ack(kcp, acked_segs, kcp->ackedlen, 
+					prior_in_flight);
 		}
 		else {
 			if (kcp->cwnd < kcp->rmt_wnd) {
@@ -1084,11 +1090,6 @@ void ikcp_flush(ikcpcb *kcp)
 		newseg->rto = kcp->rx_rto;
 		newseg->fastack = 0;
 		newseg->xmit = 0;
-
-		if (kcp->ccops && kcp->ccops->on_pkt_sent) {
-			kcp->ccops->on_pkt_sent(kcp, newseg->sn, current, 
-					newseg->len, kcp->nsnd_buf - 1);
-		}
 	}
 
 	// check on_app_limited
@@ -1147,6 +1148,11 @@ void ikcp_flush(ikcpcb *kcp)
 			segment->ts = current;
 			segment->wnd = seg.wnd;
 			segment->una = kcp->rcv_nxt;
+
+			if (kcp->ccops && kcp->ccops->on_pkt_sent) {
+				kcp->ccops->on_pkt_sent(kcp, segment->sn, current,
+						segment->len, kcp->nsnd_buf, segment->xmit);
+			}
 
 			size = (int)(ptr - buffer);
 			need = IKCP_OVERHEAD + segment->len;
